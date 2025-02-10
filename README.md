@@ -46,4 +46,8 @@ Permite eliminar una venta estableciendo su valor en `0`.
 - Solicita el mes y el departamento.  
 - Verifica si están en las listas `"meses"`, `"departamentos"`.  
 - Restablece el valor en `0` en la matriz `"ventas"`.  
-- Muestra `"Venta en {Mes}-{Departamento} eliminada"` o un mensaje de error si no existe.  
+- Muestra `"Venta en {Mes}-{Departamento} eliminada"` o un mensaje de error si no existe.
+  
+---
+## **Conclusión Matriz Calificaciones**
+Después de ejecutar el programa con dos estructuras distintas — una donde las filas representan alumnos y las columnas representan materias (versión original) y otra donde se invierten (filas como materias y columnas como alumnos), ambas pruebas las realizé con `[5000]` materias y `[5000]` alumnos pero la estructura original (alumnos en filas, materias en columnas) es la mejor opción porque hace que las búsquedas sean más rápidas y eficientes ya que obuvo una diferencia en la generación de matriz de casi 3 segundos
