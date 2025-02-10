@@ -1,0 +1,55 @@
+from tabulate import tabulate
+
+#Defines los datos iniciales
+meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+departamentos = ["ropa", "deportes", "jugueteria"]
+ventas = [[0] * len(departamentos) for _ in range(len(meses))]  
+
+# Función para mostrar la tabla con tabulate
+def mostrar_tabla():
+    print(tabulate([[mes.capitalize()] + fila for mes, fila in zip(meses, ventas)], headers=["Mes"] + [d.capitalize() for d in departamentos], tablefmt="grid"))
+
+# Función para insertar una venta
+def insertar_venta():
+    mes = input("Ingrese el mes de la venta: ").strip().lower()
+    depto = input("Ingrese el departamento(Ropa,Deportes,Jugueteria): ").strip().lower()
+    try:
+        valor = float(input("Ingrese el valor de la venta: "))
+        if mes in meses and depto in departamentos:
+            ventas[meses.index(mes)][departamentos.index(depto)] = valor
+        else:
+            print("Error: Mes o departamento inválido.")
+    except ValueError:
+        print("Error: Ingrese un número válido para la venta.")
+
+# Función para buscar una venta
+def buscar_venta():
+    mes = input("Ingrese el mes a buscar: ").strip().lower()
+    depto = input("Ingrese el departamento a buscar(Ropa,Deportes,Jugueteria): ").strip().lower()
+    if mes in meses and depto in departamentos:
+        print(f"La venta en {mes.capitalize()} - {depto.capitalize()} es: {ventas[meses.index(mes)][departamentos.index(depto)]}")
+    else:
+        print("Error: Mes o departamento inválido.")
+
+# Función para eliminar una venta
+def eliminar_venta():
+    mes = input("Ingrese el mes a eliminar: ").strip().lower()
+    depto = input("Ingrese el departamento a eliminar(Ropa,Deportes,Jugueteria): ").strip().lower()
+    if mes in meses and depto in departamentos:
+        ventas[meses.index(mes)][departamentos.index(depto)] = 0
+        print(f"Venta en {mes.capitalize()} - {depto.capitalize()} eliminada.")
+    else:
+        print("Error: Mes o departamento inválido.")
+
+
+insertar_venta()
+insertar_venta()
+mostrar_tabla()
+buscar_venta()
+eliminar_venta()
+mostrar_tabla()
+
+
+
+
+
