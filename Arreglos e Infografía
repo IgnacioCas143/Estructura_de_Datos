@@ -1,0 +1,49 @@
+import random
+import time
+
+def generar_matriz(alumnos, materias):
+    return [[random.randint(0, 100) for _ in range(materias)] for _ in range(alumnos)]
+
+def buscar_calificacion(matriz, alumno, materia):
+    return matriz[alumno][materia] if 0 <= alumno < len(matriz) and 0 <= materia < len(matriz[0]) else None
+
+def imprimir_tabla(matriz, alumnos, materias):
+    # Imprimir encabezado
+    header = ["Alumno"] + [f"Materia {i+1}" for i in range(materias)]
+    print(f"{'|'.join([str(h).ljust(12) for h in header])}")
+    print("-" * 12 * len(header))
+
+    # Imprimir los datos de los alumnos
+    for i in range(alumnos):
+        row = [f"{i+1}".ljust(12)] + [str(matriz[i][j]).ljust(12) for j in range(materias)]
+        print("|".join(row))
+
+def main():
+    alumnos = int(input("Ingrese la cantidad de alumnos: "))
+    materias = int(input("Ingrese la cantidad de materias: "))
+    
+    inicio = time.time()
+    matriz = generar_matriz(alumnos, materias)
+    fin = time.time()
+    
+    
+    print(f"Mostrando los primeros {alumnos} alumnos y materias en formato tabla:")
+    imprimir_tabla(matriz, alumnos, materias)
+    
+    print(f"Matriz generada en {fin - inicio:.4f} segundos\n")
+    alumno = int(input("Ingrese el número de alumno a buscar: ")) - 1
+    materia = int(input("Ingrese el número de materia a buscar: ")) - 1
+    
+    inicio = time.time()
+    resultado = buscar_calificacion(matriz, alumno, materia)
+    fin = time.time()
+    
+    if resultado is not None:
+        print(f"La calificación del Alumno {alumno+1} en Materia {materia+1} es: {resultado}")
+    else:
+        print("Índices fuera de rango.")
+    
+    
+if __name__ == "__main__":
+    main()
+
