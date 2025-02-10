@@ -1,7 +1,7 @@
-# Estructura_de_Datos
-Repositorio de la Materia Estructura de Datos
+
+# *Repositorio de la Materia Estructura de Datos*
 ---
-# **Código "Arreglos" en Python**
+# **Código "Arreglos"**
 
 El código consiste en un registro de ventas mensuales por departamento de una tienda.  
 Usa un **arreglo bidimensional (2D)** para almacenar los datos y permite:  
@@ -17,7 +17,13 @@ Usa un **arreglo bidimensional (2D)** para almacenar los datos y permite:
 ### `mostrar_Tabla()`  
 Muestra la tabla de ventas organizadas por mes y departamento usando la librería **tabulate**.  
 - Crea una lista de listas donde cada fila representa un mes.  
-- `tabulate()` organiza los datos en una tabla con formato `"grid"`.  
+- `tabulate()` organiza los datos en una tabla con formato `"grid"`.
+- 
+| Mes   | Ropa | Deportes |Jugutería |
+|-------|-------------|--------|
+| Enero |0  | $500   |
+| Febrero | Electrónica | $800   |
+
 
 ### `insertar_Venta()`  
 Permite ingresar un valor de venta para un mes y departamento específico.  
