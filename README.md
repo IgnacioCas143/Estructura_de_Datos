@@ -19,11 +19,10 @@ Muestra la tabla de ventas organizadas por mes y departamento usando la librerí
 - Crea una lista de listas donde cada fila representa un mes.  
 - `tabulate()` organiza los datos en una tabla con formato `"grid"`.
 - 
-| Mes   | Ropa | Deportes |Jugutería |
+| Mes   | Departamento | Ventas |
 |-------|-------------|--------|
-| Enero |0  | $500   |
+| Enero | Ropa       | $500   |
 | Febrero | Electrónica | $800   |
-
 
 ### `insertar_Venta()`  
 Permite ingresar un valor de venta para un mes y departamento específico.  
