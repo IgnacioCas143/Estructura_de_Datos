@@ -13,7 +13,7 @@ def main():
     inicio = time.time()
     resultado = factorial_iterativo(n)
     fin = time.time()
-    print(f"Factorial de {n} (iterativo): {resultado}")
+    print(f"Factorial de {n}: {resultado}")
     print(f"Tiempo de ejecución: {fin - inicio:.8f} segundos")
 
 if __name__ == "__main__":
