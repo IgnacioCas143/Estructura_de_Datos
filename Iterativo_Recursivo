@@ -1,4 +1,4 @@
-// Factorial Iterativo
+// Factorial Iterativo O(n)
 
 import time
 
@@ -19,22 +19,24 @@ def main():
 if __name__ == "__main__":
     main()
 
-// Factorial Recursivo
+// Factorial Recursivo O(n²)
 
 import time
 
-def factorial_recursivo(n):
+def factorial_recursivo_n2(n):
     if n == 0 or n == 1:
         return 1
-    return n * factorial_recursivo(n - 1)
+    
+    resultado = 0
+    for _ in range(n):
+        resultado += factorial_recursivo_n2(n - 1) 
 
-def main():
-    n = int(input("Ingresa un número para calcular su factorial: "))
-    inicio = time.time()
-    resultado = factorial_recursivo(n)
-    fin = time.time()
-    print(f"Factorial de {n} (recursivo): {resultado}")
-    print(f"Tiempo de ejecución: {fin - inicio:.8f} segundos")
+    return resultado
 
-if __name__ == "__main__":
-    main()
+n = int(input("Introduce un número para calcular su factorial (recursivo O(n²)): "))
+inicio = time.time()
+resultado = factorial_recursivo_n2(n)
+fin = time.time()
+
+print(f"Factorial de {n} es: {resultado}")
+print(f"Tiempo de ejecución: {fin - inicio:.10f} segundos")
