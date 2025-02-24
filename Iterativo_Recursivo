@@ -33,7 +33,7 @@ def factorial_recursivo_n2(n):
 
     return resultado
 
-n = int(input("Introduce un número para calcular su factorial (recursivo O(n²)): "))
+n = int(input("Introduce un número para calcular su factorial: "))
 inicio = time.time()
 resultado = factorial_recursivo_n2(n)
 fin = time.time()
