@@ -1,51 +1,48 @@
-// Código para Carro Evita Obstáculos usando Sensor Ultrasónico
+/ Código para Carro Evita Obstáculos con Verificación Post-Giro
 
 // --- Pines de Motores ---
 const int motorIzqA = 5;  // Motor Izquierdo A
 const int motorIzqB = 6;  // Motor Izquierdo B
-const int motorDerA = 10; // Motor Derecho A (Ajustado para evitar conflictos comunes)
-const int motorDerB = 11; // Motor Derecho B (Ajustado para evitar conflictos comunes)
+const int motorDerA = 10; // Motor Derecho A (Ajustado)
+const int motorDerB = 11; // Motor Derecho B (Ajustado)
 
 // --- Pines Sensor Ultrasónico ---
-const int trigPin = 12; // Pin Trig (Ajustado para evitar conflictos comunes)
-const int echoPin = 13; // Pin Echo (Ajustado para evitar conflictos comunes)
+const int trigPin = 12; // Pin Trig (Ajustado)
+const int echoPin = 13; // Pin Echo (Ajustado)
 
 // --- Variables para medición de distancia ---
 long duracionUltrasonico;
 int distanciaObstaculo;
-bool giroDerechaObstaculo = true; // Dirección de giro para evitar obstáculo
+bool giroDerechaObstaculo = true; // Dirección de giro inicial
 
 // --- Constantes Configurables ---
 const int DISTANCIA_MINIMA = 20;  // Distancia mínima en cm para evitar obstáculo
+const int DISTANCIA_SEGURA_AVANCE = 30; // Distancia mínima para considerar seguro avanzar después de girar
 const int VELOCIDAD_AVANCE = 200; // Velocidad de avance normal (0-255)
 const int VELOCIDAD_GIRO = 180;   // Velocidad durante giros (0-255)
-const int TIEMPO_GIRO_OBSTACULO = 500; // Tiempo de giro para evitar obstáculo (ms)
+const int TIEMPO_GIRO_INICIAL = 400; // Tiempo del primer giro (ms)
+const int TIEMPO_GIRO_ADICIONAL = 300; // Tiempo de giros adicionales si sigue bloqueado (ms)
 const int TIEMPO_RETROCESO = 300; // Tiempo de retroceso (ms)
+const int MAX_INTENTOS_GIRO = 4; // Máximos giros adicionales antes de rendirse (evitar bucles infinitos)
 
 // --- Constantes de Inversión de Motores ---
-const bool INVERTIR_MOTOR_IZQ = false; // Cambiar a true si el motor izquierdo gira al revés
-const bool INVERTIR_MOTOR_DER = false; // Cambiar a true si el motor derecho gira al revés
+const bool INVERTIR_MOTOR_IZQ = false;
+const bool INVERTIR_MOTOR_DER = false; // Ajustar si el motor derecho gira al revés
 
 void setup() {
-  // Iniciar comunicación serial
   Serial.begin(9600);
-  Serial.println("Iniciando Carro Evita Obstáculos...");
+  Serial.println("Iniciando Carro Evita Obstáculos con Verificación...");
 
-  // Configurar pines de motores como SALIDA
   pinMode(motorIzqA, OUTPUT);
   pinMode(motorIzqB, OUTPUT);
   pinMode(motorDerA, OUTPUT);
   pinMode(motorDerB, OUTPUT);
-
-  // Configurar pines sensor ultrasónico
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
 
-  // Detener motores al inicio
   detener();
   Serial.println("Motores detenidos.");
-  delay(1000); // Pausa inicial
-
+  delay(1000);
   Serial.println("Sistema listo.");
 }
 
@@ -57,31 +54,88 @@ void loop() {
   Serial.println(" cm");
 
   // 2. Lógica de Evasión de Obstáculos
-  if (distanciaObstaculo < DISTANCIA_MINIMA && distanciaObstaculo > 0) { // Ignorar lecturas 0 o inválidas
+  if (distanciaObstaculo < DISTANCIA_MINIMA && distanciaObstaculo > 0) {
     Serial.println("¡Obstáculo Detectado!");
     detener();
     delay(200);
-    // Retroceder
+
+    // --- Maniobra de Evasión ---
+    // a) Retroceder
     Serial.println("Retrocediendo...");
-    retroceder(VELOCIDAD_AVANCE); // Retroceder a velocidad normal
+    retroceder(VELOCIDAD_AVANCE);
     delay(TIEMPO_RETROCESO);
     detener();
     delay(200);
-    // Girar para evitar
+
+    // b) Girar (primer intento)
     if (giroDerechaObstaculo) {
-      Serial.println("Girando a la Derecha");
+      Serial.println("Girando a la Derecha (Intento 1)");
       girarDerecha(VELOCIDAD_GIRO);
     } else {
-      Serial.println("Girando a la Izquierda");
+      Serial.println("Girando a la Izquierda (Intento 1)");
       girarIzquierda(VELOCIDAD_GIRO);
     }
-    delay(TIEMPO_GIRO_OBSTACULO);
+    delay(TIEMPO_GIRO_INICIAL);
     detener();
     delay(200);
-    // Alternar dirección de giro para la próxima vez
+
+    // c) Verificar si el camino está despejado después del primer giro
+    medirDistancia();
+    Serial.print("Verificando después de giro 1: ");
+    Serial.print(distanciaObstaculo);
+    Serial.println(" cm");
+
+    int intentosGiro = 0;
+    // d) Si sigue bloqueado, girar más (en la misma dirección inicial)
+    while (distanciaObstaculo < DISTANCIA_SEGURA_AVANCE && distanciaObstaculo > 0 && intentosGiro < MAX_INTENTOS_GIRO) {
+      intentosGiro++;
+      Serial.print("Camino aún bloqueado. Girando más (Intento ");
+      Serial.print(intentosGiro + 1);
+      Serial.println(")...");
+
+      if (giroDerechaObstaculo) {
+        girarDerecha(VELOCIDAD_GIRO);
+      } else {
+        girarIzquierda(VELOCIDAD_GIRO);
+      }
+      delay(TIEMPO_GIRO_ADICIONAL);
+      detener();
+      delay(200);
+
+      // Volver a medir
+      medirDistancia();
+      Serial.print("Verificando después de giro adicional: ");
+      Serial.print(distanciaObstaculo);
+      Serial.println(" cm");
+    }
+
+    // e) Si se superaron los intentos, intentar girar al otro lado una vez
+    if (intentosGiro >= MAX_INTENTOS_GIRO && distanciaObstaculo < DISTANCIA_SEGURA_AVANCE) {
+        Serial.println("Demasiados intentos en una dirección. Intentando giro opuesto...");
+        if (giroDerechaObstaculo) { // Si estaba girando a la derecha, ahora gira a la izquierda
+            girarIzquierda(VELOCIDAD_GIRO);
+        } else { // Si estaba girando a la izquierda, ahora gira a la derecha
+            girarDerecha(VELOCIDAD_GIRO);
+        }
+        delay(TIEMPO_GIRO_INICIAL + TIEMPO_GIRO_ADICIONAL); // Giro más largo
+        detener();
+        delay(200);
+        medirDistancia(); // Última verificación
+        Serial.print("Verificando después de giro opuesto: ");
+        Serial.print(distanciaObstaculo);
+        Serial.println(" cm");
+    }
+
+
+    // f) Alternar dirección para la *próxima* vez que encuentre un obstáculo
     giroDerechaObstaculo = !giroDerechaObstaculo;
+
+    // Si después de todos los intentos, el camino parece despejado, el loop continuará y avanzará.
+    // Si sigue bloqueado, en la siguiente iteración del loop volverá a entrar en la lógica de evasión.
+    Serial.println("Maniobra de evasión completada (o intentos agotados).");
+
   }
-  // 3. Si no hay obstáculo, avanzar
+  // 3. Si no hay obstáculo (o la maniobra lo despejó), avanzar
   else {
     Serial.println("Avanzando");
     avanzar(VELOCIDAD_AVANCE);
@@ -90,15 +144,11 @@ void loop() {
   delay(50); // Pequeña pausa en el bucle
 }
 
-// --- Funciones de Control de Motores (con inversión y analogWrite) ---
-
-// Función genérica para controlar un par de pines de motor con inversión y velocidad
+// --- Funciones de Control de Motores (sin cambios) ---
 void controlMotor(int pinA, int pinB, int dirA, int dirB, int velocidad, bool invertir) {
   int nivelA = (dirA == HIGH) ? velocidad : LOW;
   int nivelB = (dirB == HIGH) ? velocidad : LOW;
-
   if (invertir) {
-    // Invierte los pines si es necesario
     analogWrite(pinA, nivelB);
     analogWrite(pinB, nivelA);
   } else {
@@ -106,51 +156,39 @@ void controlMotor(int pinA, int pinB, int dirA, int dirB, int velocidad, bool in
     analogWrite(pinB, nivelB);
   }
 }
-
 void avanzar(int velocidad) {
   controlMotor(motorIzqA, motorIzqB, HIGH, LOW, velocidad, INVERTIR_MOTOR_IZQ);
   controlMotor(motorDerA, motorDerB, HIGH, LOW, velocidad, INVERTIR_MOTOR_DER);
 }
-
 void retroceder(int velocidad) {
   controlMotor(motorIzqA, motorIzqB, LOW, HIGH, velocidad, INVERTIR_MOTOR_IZQ);
   controlMotor(motorDerA, motorDerB, LOW, HIGH, velocidad, INVERTIR_MOTOR_DER);
 }
-
 void girarDerecha(int velocidad) {
-  controlMotor(motorIzqA, motorIzqB, HIGH, LOW, velocidad, INVERTIR_MOTOR_IZQ); // Izquierda adelante
-  controlMotor(motorDerA, motorDerB, LOW, HIGH, velocidad, INVERTIR_MOTOR_DER); // Derecha atrás
+  controlMotor(motorIzqA, motorIzqB, HIGH, LOW, velocidad, INVERTIR_MOTOR_IZQ);
+  controlMotor(motorDerA, motorDerB, LOW, HIGH, velocidad, INVERTIR_MOTOR_DER);
 }
-
 void girarIzquierda(int velocidad) {
-  controlMotor(motorIzqA, motorIzqB, LOW, HIGH, velocidad, INVERTIR_MOTOR_IZQ); // Izquierda atrás
-  controlMotor(motorDerA, motorDerB, HIGH, LOW, velocidad, INVERTIR_MOTOR_DER); // Derecha adelante
+  controlMotor(motorIzqA, motorIzqB, LOW, HIGH, velocidad, INVERTIR_MOTOR_IZQ);
+  controlMotor(motorDerA, motorDerB, HIGH, LOW, velocidad, INVERTIR_MOTOR_DER);
 }
-
 void detener() {
-  // Poner ambos pines en LOW detiene la mayoría de los drivers
   analogWrite(motorIzqA, 0);
   analogWrite(motorIzqB, 0);
   analogWrite(motorDerA, 0);
   analogWrite(motorDerB, 0);
 }
 
-// --- Funciones del Sensor Ultrasónico ---
+// --- Función del Sensor Ultrasónico (sin cambios) ---
 void medirDistancia() {
-  // Limpiar el trigger
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
-  // Enviar pulso
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
-  // Leer el tiempo del eco con timeout
-  duracionUltrasonico = pulseIn(echoPin, HIGH, 25000); // Timeout ~4m
-  // Calcular distancia en cm
+  duracionUltrasonico = pulseIn(echoPin, HIGH, 25000);
   distanciaObstaculo = duracionUltrasonico * 0.034 / 2;
-
-  // Limitar valores irreales
   if (distanciaObstaculo <= 0 || distanciaObstaculo > 400) {
-    distanciaObstaculo = 400; // Asumir sin obstáculo si la lectura es inválida
+    distanciaObstaculo = 400;
   }
 }
