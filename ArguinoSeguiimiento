@@ -1,4 +1,4 @@
-// Código para carro seguidor de línea negra
+// Código para carro seguidor de línea negra con CALIBRACIÓN AUTOMÁTICA
 // Utiliza sensores IR para detectar la línea negra en el piso
 
 // Pines de motor
@@ -17,13 +17,20 @@ int valorIzquierdo;
 int valorCentral;
 int valorDerecho;
 
+// Variables para calibración
+int umbralIzquierdo;
+int umbralCentral;
+int umbralDerecho;
+bool sensoresCalibrados = false;
+
 // Constantes configurables
-const int VELOCIDAD_NORMAL = 150;  // Velocidad normal (0-255)
-const int VELOCIDAD_GIRO = 120;    // Velocidad durante giros (0-255)
+const int VELOCIDAD_NORMAL = 200;  // Velocidad normal (0-255) - Aumentada
+const int VELOCIDAD_GIRO = 150;    // Velocidad durante giros (0-255)
 const bool LINEA_NEGRA = true;     // true para línea negra, false para línea blanca
 
 // Configuración de tiempo
 const int TIEMPO_MUESTREO = 50;    // Tiempo entre lecturas de sensores (ms)
+const int TIEMPO_CALIBRACION = 3000; // Tiempo para calibración (ms)
 
 void setup() {
   // Configuración de pines de motor como salidas
@@ -43,6 +50,37 @@ void setup() {
   // Pequeña pausa antes de comenzar
   delay(1000);
   Serial.println("Carro seguidor de línea iniciado");
+  
+  // Detener motores durante la calibración
+  detener();
+  
+  // Calibrar sensores
+  calibrarSensores();
+  
+  // Prueba de motores
+  Serial.println("Probando motores...");
+  
+  // Probar motor izquierdo
+  Serial.println("Motor izquierdo");
+  digitalWrite(motorIzqA, HIGH);
+  digitalWrite(motorIzqB, LOW);
+  digitalWrite(motorDerA, LOW);
+  digitalWrite(motorDerB, LOW);
+  delay(500);
+  
+  // Probar motor derecho
+  Serial.println("Motor derecho");
+  digitalWrite(motorIzqA, LOW);
+  digitalWrite(motorIzqB, LOW);
+  digitalWrite(motorDerA, HIGH);
+  digitalWrite(motorDerB, LOW);
+  delay(500);
+  
+  // Detener
+  detener();
+  delay(500);
+  
+  Serial.println("¡Listo para seguir línea!");
 }
 
 void loop() {
@@ -54,10 +92,10 @@ void loop() {
   
   // Lógica para seguir la línea
   if (LINEA_NEGRA) {
-    // Lógica para seguir línea negra (sensor devuelve LOW cuando detecta negro)
+    // Lógica para seguir línea negra
     seguirLineaNegra();
   } else {
-    // Lógica para seguir línea blanca (sensor devuelve HIGH cuando detecta blanco)
+    // Lógica para seguir línea blanca
     seguirLineaBlanca();
   }
   
@@ -65,21 +103,86 @@ void loop() {
   delay(TIEMPO_MUESTREO);
 }
 
+// Función para calibrar los sensores
+void calibrarSensores() {
+  Serial.println("Iniciando calibración de sensores...");
+  Serial.println("Coloque el carro sobre la superficie SIN línea");
+  Serial.println("La calibración comenzará en 3 segundos...");
+  delay(3000);
+  
+  // Variables para acumular lecturas
+  long sumaIzq = 0, sumaCen = 0, sumaDer = 0;
+  const int numLecturas = 50;
+  
+  // Tomar múltiples lecturas para calibrar
+  Serial.println("Calibrando...");
+  for (int i = 0; i < numLecturas; i++) {
+    // Leer valores analógicos para mayor precisión en la calibración
+    sumaIzq += analogRead(sensorIzquierdo);
+    sumaCen += analogRead(sensorCentral);
+    sumaDer += analogRead(sensorDerecho);
+    
+    // Parpadear LED incorporado para indicar calibración
+    digitalWrite(LED_BUILTIN, i % 2);
+    
+    delay(50);
+  }
+  
+  // Calcular promedios
+  int promedioIzq = sumaIzq / numLecturas;
+  int promedioCen = sumaCen / numLecturas;
+  int promedioDer = sumaDer / numLecturas;
+  
+  // Establecer umbrales (ajustar según sea necesario)
+  // Para sensores digitales, esto no afectará la lectura pero sirve para depuración
+  umbralIzquierdo = promedioIzq;
+  umbralCentral = promedioCen;
+  umbralDerecho = promedioDer;
+  
+  Serial.println("Calibración completada!");
+  Serial.print("Umbrales - Izquierdo: ");
+  Serial.print(umbralIzquierdo);
+  Serial.print(", Central: ");
+  Serial.print(umbralCentral);
+  Serial.print(", Derecho: ");
+  Serial.println(umbralDerecho);
+  
+  sensoresCalibrados = true;
+  
+  // Apagar LED
+  digitalWrite(LED_BUILTIN, LOW);
+}
+
 // Función para leer los sensores
 void leerSensores() {
-  valorIzquierdo = digitalRead(sensorIzquierdo);
-  valorCentral = digitalRead(sensorCentral);
-  valorDerecho = digitalRead(sensorDerecho);
+  // Para sensores digitales, leemos directamente
+  // Si tienes sensores analógicos, puedes comparar con los umbrales calibrados
+  
+  // Leer varias veces para estabilidad
+  int sumIzq = 0, sumCen = 0, sumDer = 0;
+  const int numLecturas = 3;
+  
+  for (int i = 0; i < numLecturas; i++) {
+    sumIzq += digitalRead(sensorIzquierdo);
+    sumCen += digitalRead(sensorCentral);
+    sumDer += digitalRead(sensorDerecho);
+    delayMicroseconds(500);
+  }
+  
+  // Un sensor se considera LOW si la mayoría de lecturas son LOW
+  valorIzquierdo = (sumIzq < numLecturas/2) ? LOW : HIGH;
+  valorCentral = (sumCen < numLecturas/2) ? LOW : HIGH;
+  valorDerecho = (sumDer < numLecturas/2) ? LOW : HIGH;
 }
 
 // Función para mostrar valores de sensores
 void mostrarValoresSensores() {
   Serial.print("Sensores (I,C,D): ");
-  Serial.print(valorIzquierdo);
+  Serial.print(valorIzquierdo == LOW ? "NEGRO" : "blanco");
   Serial.print(", ");
-  Serial.print(valorCentral);
+  Serial.print(valorCentral == LOW ? "NEGRO" : "blanco");
   Serial.print(", ");
-  Serial.println(valorDerecho);
+  Serial.println(valorDerecho == LOW ? "NEGRO" : "blanco");
 }
 
 // Función para seguir línea negra
@@ -140,9 +243,9 @@ void seguirLineaBlanca() {
 
 // Función para avanzar con control de velocidad
 void avanzar(int velocidad) {
-  analogWrite(motorIzqA, velocidad);
+  digitalWrite(motorIzqA, HIGH);  // Usar HIGH para máxima potencia
   digitalWrite(motorIzqB, LOW);
-  analogWrite(motorDerA, velocidad);
+  digitalWrite(motorDerA, HIGH);  // Usar HIGH para máxima potencia
   digitalWrite(motorDerB, LOW);
   Serial.println("Avanzando");
 }
@@ -150,26 +253,26 @@ void avanzar(int velocidad) {
 // Función para retroceder con control de velocidad
 void retroceder(int velocidad) {
   digitalWrite(motorIzqA, LOW);
-  analogWrite(motorIzqB, velocidad);
+  digitalWrite(motorIzqB, HIGH);  // Usar HIGH para máxima potencia
   digitalWrite(motorDerA, LOW);
-  analogWrite(motorDerB, velocidad);
+  digitalWrite(motorDerB, HIGH);  // Usar HIGH para máxima potencia
   Serial.println("Retrocediendo");
 }
 
 // Función para girar a la derecha con control de velocidad
 void girarDerecha(int velocidad) {
-  analogWrite(motorIzqA, velocidad);
+  digitalWrite(motorIzqA, HIGH);  // Usar HIGH para máxima potencia
   digitalWrite(motorIzqB, LOW);
   digitalWrite(motorDerA, LOW);
-  analogWrite(motorDerB, velocidad);
+  digitalWrite(motorDerB, HIGH);  // Usar HIGH para máxima potencia
   Serial.println("Girando a la derecha");
 }
 
 // Función para girar a la izquierda con control de velocidad
 void girarIzquierda(int velocidad) {
   digitalWrite(motorIzqA, LOW);
-  analogWrite(motorIzqB, velocidad);
-  analogWrite(motorDerA, velocidad);
+  digitalWrite(motorIzqB, HIGH);  // Usar HIGH para máxima potencia
+  digitalWrite(motorDerA, HIGH);  // Usar HIGH para máxima potencia
   digitalWrite(motorDerB, LOW);
   Serial.println("Girando a la izquierda");
 }
