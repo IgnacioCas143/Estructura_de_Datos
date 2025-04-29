@@ -1,71 +1,53 @@
-
 // Pines de motor
 const int motorIzqA = 5;
 const int motorIzqB = 6;
 const int motorDerA = 9;
 const int motorDerB = 10;
 
-// Pines ultrasonico
+// Pines ultrasónico
 const int trigPin = 7;
 const int echoPin = 8;
 
-// Variables para medicion de distancia
+// Variables para medición de distancia
 long duracion;
 int distancia;
-bool giroDerecha = true; // alterna direccion de giro
+bool giroDerecha = true; // alterna dirección de giro
 
 // Constantes configurables
-const int DISTANCIA_MINIMA = 15;  // Distancia minima en cm antes de girar
-const int TIEMPO_GIRO = 600;      // Tiempo de giro en ms
-const int MUESTRAS_DISTANCIA = 3; // Numero de muestras para promediar la distancia
+const int DISTANCIA_MINIMA = 15;  // Distancia mínima en cm antes de girar
+const int TIEMPO_GIRO = 500;      // Tiempo de giro en ms (reducido)
+const int MUESTRAS_DISTANCIA = 3; // Número de muestras para promediar la distancia
+const int TIEMPO_AVANCE_MIN = 500; // Tiempo mínimo de avance después de un giro
 
-// Constantes para invertir motores si es necesario
-// Cambia estos valores a true si necesitas invertir la dirección de algún motor
-const bool INVERTIR_MOTOR_IZQ = false;
-const bool INVERTIR_MOTOR_DER = true; // Cambiado a true para corregir el problema
+// Variables de control
+unsigned long ultimoTiempoGiro = 0;
+bool enModoEvitarObstaculo = false;
 
 void setup() {
-  // Configuracion de pines de motor como salidas
+  // Configuración de pines de motor como salidas
   pinMode(motorIzqA, OUTPUT);
   pinMode(motorIzqB, OUTPUT);
   pinMode(motorDerA, OUTPUT);
   pinMode(motorDerB, OUTPUT);
   
-  // Configuracion de pines del sensor ultrasonico
+  // Configuración de pines del sensor ultrasónico
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   
-  // Iniciar comunicacion serial para depuracion
+  // Iniciar comunicación serial para depuración
   Serial.begin(9600);
   
-  // Pequena pausa antes de comenzar
+  // Pequeña pausa antes de comenzar
   delay(1000);
-  Serial.println("Carro evita obstaculos iniciado");
+  Serial.println("Carro evita obstáculos iniciado");
   
-  // Prueba inicial de motores
-  Serial.println("Probando motores...");
-  
-  Serial.println("Motor izquierdo adelante");
-  digitalWrite(motorIzqA, INVERTIR_MOTOR_IZQ ? LOW : HIGH);
-  digitalWrite(motorIzqB, INVERTIR_MOTOR_IZQ ? HIGH : LOW);
-  digitalWrite(motorDerA, LOW);
-  digitalWrite(motorDerB, LOW);
-  delay(1000);
-  
-  Serial.println("Motor derecho adelante");
-  digitalWrite(motorIzqA, LOW);
-  digitalWrite(motorIzqB, LOW);
-  digitalWrite(motorDerA, INVERTIR_MOTOR_DER ? LOW : HIGH);
-  digitalWrite(motorDerB, INVERTIR_MOTOR_DER ? HIGH : LOW);
-  delay(1000);
-  
-  Serial.println("Ambos motores detenidos");
+  // Asegurar que el carro esté detenido al inicio
   detener();
-  delay(1000);
+  delay(500);
 }
 
 void loop() {
-  // Medir la distancia al obstaculo
+  // Medir la distancia al obstáculo
   medirDistancia();
   
   // Mostrar la distancia en el monitor serial
@@ -73,22 +55,29 @@ void loop() {
   Serial.print(distancia);
   Serial.println(" cm");
   
-  // Logica para evitar obstaculos
-  if (distancia < DISTANCIA_MINIMA) {
-    // Si hay un obstaculo cercano
-    Serial.println("Obstaculo detectado!");
+  // Verificar si ha pasado suficiente tiempo desde el último giro
+  bool tiempoSuficienteDespuesDeGiro = (millis() - ultimoTiempoGiro) > TIEMPO_AVANCE_MIN;
+  
+  // Lógica para evitar obstáculos
+  if (distancia < DISTANCIA_MINIMA && tiempoSuficienteDespuesDeGiro) {
+    // Si hay un obstáculo cercano y ha pasado suficiente tiempo desde el último giro
+    Serial.println("¡Obstáculo detectado!");
+    
+    // Marcar que estamos en modo de evitar obstáculo
+    enModoEvitarObstaculo = true;
     
     // Detener el carro
     detener();
     delay(300);
     
     // Retroceder un poco antes de girar
+    Serial.println("Retrocediendo");
     retroceder();
     delay(400);
     detener();
     delay(200);
     
-    // Girar en la direccion alternada
+    // Girar en la dirección alternada
     if (giroDerecha) {
       Serial.println("Girando a la derecha");
       girarDerecha();
@@ -99,54 +88,78 @@ void loop() {
     
     delay(TIEMPO_GIRO); // Tiempo de giro
     
-    // Detener despues del giro
+    // Detener después del giro
     detener();
     delay(200);
     
-    // Alternar direccion para el siguiente obstaculo
+    // Alternar dirección para el siguiente obstáculo
     giroDerecha = !giroDerecha;
+    
+    // Registrar el tiempo del último giro
+    ultimoTiempoGiro = millis();
+    
+    // Verificar si el camino está despejado después del giro
+    medirDistancia();
+    if (distancia < DISTANCIA_MINIMA) {
+      // Si aún hay obstáculo, girar más
+      Serial.println("Aún hay obstáculo, girando más");
+      if (giroDerecha) {
+        girarIzquierda(); // Girar en dirección opuesta
+      } else {
+        girarDerecha();
+      }
+      delay(TIEMPO_GIRO);
+      detener();
+      delay(200);
+    }
+    
+    // Salir del modo de evitar obstáculo
+    enModoEvitarObstaculo = false;
+    
   } else {
-    // Si no hay obstaculos, avanzar
-    avanzar();
+    // Si no hay obstáculos o estamos en periodo de espera después de un giro, avanzar
+    if (!enModoEvitarObstaculo) {
+      avanzar();
+    }
   }
   
-  // Pequena pausa para estabilizar lecturas
+  // Pequeña pausa para estabilizar lecturas
   delay(50);
 }
 
-// Funcion para avanzar
+// Función para avanzar
 void avanzar() {
-  digitalWrite(motorIzqA, INVERTIR_MOTOR_IZQ ? LOW : HIGH);
-  digitalWrite(motorIzqB, INVERTIR_MOTOR_IZQ ? HIGH : LOW);
-  digitalWrite(motorDerA, INVERTIR_MOTOR_DER ? LOW : HIGH);
-  digitalWrite(motorDerB, INVERTIR_MOTOR_DER ? HIGH : LOW);
+  digitalWrite(motorIzqA, HIGH);
+  digitalWrite(motorIzqB, LOW);
+  digitalWrite(motorDerA, HIGH);
+  digitalWrite(motorDerB, LOW);
 }
 
-// Funcion para retroceder
+// Función para retroceder
 void retroceder() {
-  digitalWrite(motorIzqA, INVERTIR_MOTOR_IZQ ? HIGH : LOW);
-  digitalWrite(motorIzqB, INVERTIR_MOTOR_IZQ ? LOW : HIGH);
-  digitalWrite(motorDerA, INVERTIR_MOTOR_DER ? HIGH : LOW);
-  digitalWrite(motorDerB, INVERTIR_MOTOR_DER ? LOW : HIGH);
+  digitalWrite(motorIzqA, LOW);
+  digitalWrite(motorIzqB, HIGH);
+  digitalWrite(motorDerA, LOW);
+  digitalWrite(motorDerB, HIGH);
 }
 
-// Funcion para girar a la derecha
+// Función para girar a la derecha
 void girarDerecha() {
-  digitalWrite(motorIzqA, INVERTIR_MOTOR_IZQ ? LOW : HIGH);
-  digitalWrite(motorIzqB, INVERTIR_MOTOR_IZQ ? HIGH : LOW);
-  digitalWrite(motorDerA, INVERTIR_MOTOR_DER ? HIGH : LOW);
-  digitalWrite(motorDerB, INVERTIR_MOTOR_DER ? LOW : HIGH);
+  digitalWrite(motorIzqA, HIGH);
+  digitalWrite(motorIzqB, LOW);
+  digitalWrite(motorDerA, LOW);
+  digitalWrite(motorDerB, HIGH);
 }
 
-// Funcion para girar a la izquierda
+// Función para girar a la izquierda
 void girarIzquierda() {
-  digitalWrite(motorIzqA, INVERTIR_MOTOR_IZQ ? HIGH : LOW);
-  digitalWrite(motorIzqB, INVERTIR_MOTOR_IZQ ? LOW : HIGH);
-  digitalWrite(motorDerA, INVERTIR_MOTOR_DER ? LOW : HIGH);
-  digitalWrite(motorDerB, INVERTIR_MOTOR_DER ? HIGH : LOW);
+  digitalWrite(motorIzqA, LOW);
+  digitalWrite(motorIzqB, HIGH);
+  digitalWrite(motorDerA, HIGH);
+  digitalWrite(motorDerB, LOW);
 }
 
-// Funcion para detener el carro
+// Función para detener el carro
 void detener() {
   digitalWrite(motorIzqA, LOW);
   digitalWrite(motorIzqB, LOW);
@@ -154,11 +167,12 @@ void detener() {
   digitalWrite(motorDerB, LOW);
 }
 
-// Funcion para medir la distancia con el sensor ultrasonico
+// Función para medir la distancia con el sensor ultrasónico
 void medirDistancia() {
   long suma = 0;
+  int medicionesValidas = 0;
   
-  // Tomar varias muestras y promediar para mayor precision
+  // Tomar varias muestras y promediar para mayor precisión
   for (int i = 0; i < MUESTRAS_DISTANCIA; i++) {
     // Limpiar el trigger
     digitalWrite(trigPin, LOW);
@@ -170,18 +184,28 @@ void medirDistancia() {
     digitalWrite(trigPin, LOW);
     
     // Leer el tiempo que tarda en volver el eco
-    suma += pulseIn(echoPin, HIGH, 23200); // Timeout de ~4m
+    long lectura = pulseIn(echoPin, HIGH, 23200); // Timeout de ~4m
+    
+    if (lectura > 0) {
+      suma += lectura;
+      medicionesValidas++;
+    }
+    
     delay(10);
   }
   
-  // Calcular el promedio
-  duracion = suma / MUESTRAS_DISTANCIA;
+  // Calcular el promedio (evitar división por cero)
+  if (medicionesValidas > 0) {
+    duracion = suma / medicionesValidas;
+    // Convertir a distancia en cm (velocidad del sonido = 0.034 cm/us)
+    distancia = duracion * 0.034 / 2;
+  } else {
+    // Si no hay mediciones válidas, asumir camino despejado
+    distancia = 400;
+  }
   
-  // Convertir a distancia en cm (velocidad del sonido = 0.034 cm/us)
-  distancia = duracion * 0.034 / 2;
-  
-  // Si la distancia es 0 (timeout), establecer un valor maximo
-  if (distancia == 0) {
-    distancia = 400; // Valor maximo arbitrario
+  // Limitar el rango de distancia
+  if (distancia <= 0 || distancia > 400) {
+    distancia = 400; // Valor máximo arbitrario
   }
 }
