@@ -1,15 +1,10 @@
-
-// Código combinado para Carro Lafvin: Evita Obstáculos y Sigue Línea Negra
+// Código para Carro Sigue Línea Negra usando 3 Sensores IR
 
 // --- Pines de Motores ---
 const int motorIzqA = 5;  // Motor Izquierdo A
 const int motorIzqB = 6;  // Motor Izquierdo B
-const int motorDerA = 10; // Motor Derecho A (Cambiado de 9)
-const int motorDerB = 11; // Motor Derecho B (Cambiado de 10)
-
-// --- Pines Sensor Ultrasónico ---
-const int trigPin = 12; // Pin Trig (Cambiado de 7)
-const int echoPin = 13; // Pin Echo (Cambiado de 8)
+const int motorDerA = 10; // Motor Derecho A (Ajustado para evitar conflicto con D9)
+const int motorDerB = 11; // Motor Derecho B (Ajustado para evitar conflicto con D10 - si se usa)
 
 // --- Pines Sensores IR (Seguidor de Línea) ---
 const int sensorIzquierdo = 7;  // Sensor IR Izquierdo (D7)
@@ -17,24 +12,15 @@ const int sensorCentral = 8;    // Sensor IR Central (D8)
 const int sensorDerecho = 9;    // Sensor IR Derecho (D9)
 
 // --- Constantes Configurables ---
-// Obstáculo
-const int DISTANCIA_MINIMA = 20;  // Distancia mínima en cm para evitar obstáculo
-const int TIEMPO_GIRO_OBSTACULO = 500; // Tiempo de giro para evitar obstáculo (ms)
-const int TIEMPO_RETROCESO = 300; // Tiempo de retroceso (ms)
-// Línea
-const int VELOCIDAD_NORMAL = 180;  // Velocidad normal seguidor (0-255)
-const int VELOCIDAD_GIRO_LINEA = 150; // Velocidad giro seguidor (0-255)
+const int VELOCIDAD_NORMAL = 200;  // Velocidad normal seguidor (0-255) - Aumentada
+const int VELOCIDAD_GIRO = 160;    // Velocidad giro seguidor (0-255) - Aumentada
 const bool LINEA_NEGRA = true;     // true para línea negra, false para línea blanca
-// Motores
+
+// --- Constantes de Inversión de Motores ---
 const bool INVERTIR_MOTOR_IZQ = false; // Cambiar a true si el motor izquierdo gira al revés
-const bool INVERTIR_MOTOR_DER = true;  // Puesto a true para intentar corregir el problema del giro
+const bool INVERTIR_MOTOR_DER = false; // Cambiar a true si el motor derecho gira al revés
 
 // --- Variables Globales ---
-// Obstáculo
-long duracionUltrasonico;
-int distanciaObstaculo;
-bool giroDerechaObstaculo = true; // Dirección de giro para evitar obstáculo
-// Línea
 int valorIzquierdoIR;
 int valorCentralIR;
 int valorDerechoIR;
@@ -42,17 +28,13 @@ int valorDerechoIR;
 void setup() {
   // Iniciar comunicación serial
   Serial.begin(9600);
-  Serial.println("Iniciando Carro Lafvin Combinado...");
+  Serial.println("Iniciando Carro Sigue Línea...");
 
   // Configurar pines de motores como SALIDA
   pinMode(motorIzqA, OUTPUT);
   pinMode(motorIzqB, OUTPUT);
   pinMode(motorDerA, OUTPUT);
   pinMode(motorDerB, OUTPUT);
-
-  // Configurar pines sensor ultrasónico
-  pinMode(trigPin, OUTPUT);
-  pinMode(echoPin, INPUT);
 
   // Configurar pines sensores IR como ENTRADA
   pinMode(sensorIzquierdo, INPUT);
@@ -62,142 +44,76 @@ void setup() {
   // Detener motores al inicio
   detener();
   Serial.println("Motores detenidos.");
-  delay(500);
-
-  // --- Prueba de Motores ---
-  Serial.println("Iniciando prueba de motores...");
-  // Izquierdo Adelante
-  Serial.print("Probando Izquierdo Adelante...");
-  controlMotor(motorIzqA, motorIzqB, HIGH, LOW, INVERTIR_MOTOR_IZQ); // Izquierdo ON
-  controlMotor(motorDerA, motorDerB, LOW, LOW, INVERTIR_MOTOR_DER);  // Derecho OFF
-  delay(1000);
-  detener();
-  Serial.println(" OK");
-  delay(500);
-  // Derecho Adelante
-  Serial.print("Probando Derecho Adelante...");
-  controlMotor(motorIzqA, motorIzqB, LOW, LOW, INVERTIR_MOTOR_IZQ); // Izquierdo OFF
-  controlMotor(motorDerA, motorDerB, HIGH, LOW, INVERTIR_MOTOR_DER); // Derecho ON
-  delay(1000);
-  detener();
-  Serial.println(" OK");
-  delay(500);
-  Serial.println("Prueba de motores finalizada.");
+  delay(1000); // Pausa inicial
 
   Serial.println("Sistema listo.");
 }
 
 void loop() {
-  // 1. Medir distancia del obstáculo (Mayor Prioridad)
-  medirDistancia();
-  Serial.print("Distancia Obstaculo: ");
-  Serial.print(distanciaObstaculo);
-  Serial.println(" cm");
+  // 1. Leer sensores IR
+  leerSensoresIR();
+  mostrarValoresSensoresIR();
 
-  // 2. Lógica de Evasión de Obstáculos
-  if (distanciaObstaculo < DISTANCIA_MINIMA && distanciaObstaculo > 0) { // Ignorar lecturas 0
-    Serial.println("¡Obstáculo Detectado!");
-    detener();
-    delay(200);
-    // Retroceder
-    Serial.println("Retrocediendo...");
-    retroceder(VELOCIDAD_NORMAL);
-    delay(TIEMPO_RETROCESO);
-    detener();
-    delay(200);
-    // Girar para evitar
-    if (giroDerechaObstaculo) {
-      Serial.println("Girando a la Derecha (Obstáculo)");
-      girarDerecha(VELOCIDAD_GIRO_LINEA); // Usar velocidad de giro de línea
-    } else {
-      Serial.println("Girando a la Izquierda (Obstáculo)");
-      girarIzquierda(VELOCIDAD_GIRO_LINEA);
-    }
-    delay(TIEMPO_GIRO_OBSTACULO);
-    detener();
-    delay(200);
-    // Alternar dirección de giro para la próxima vez
-    giroDerechaObstaculo = !giroDerechaObstaculo;
-  }
-  // 3. Si no hay obstáculo, seguir la línea
-  else {
-    leerSensoresIR();
-    mostrarValoresSensoresIR();
-
-    if (LINEA_NEGRA) {
-      seguirLineaNegra();
-    } else {
-      // Aquí iría la lógica para línea blanca si la necesitaras
-      Serial.println("Modo línea blanca no implementado completamente");
-      detener(); // Detener si no está configurado para línea blanca
-    }
-  }
-
-  delay(50); // Pequeña pausa en el bucle
-}
-
-// --- Funciones de Control de Motores (con inversión) ---
-
-// Función genérica para controlar un par de pines de motor con inversión
-void controlMotor(int pinA, int pinB, int estadoA, int estadoB, bool invertir) {
-  if (invertir) {
-    // Invierte los estados si es necesario
-    digitalWrite(pinA, estadoB);
-    digitalWrite(pinB, estadoA);
+  // 2. Lógica para seguir la línea
+  if (LINEA_NEGRA) {
+    seguirLineaNegra();
   } else {
-    digitalWrite(pinA, estadoA);
-    digitalWrite(pinB, estadoB);
+    // Lógica para seguir línea blanca (sensor devuelve HIGH cuando detecta blanco)
+    // seguirLineaBlanca(); // Implementar si es necesario
+    Serial.println("Modo línea blanca no implementado.");
+    detener();
+  }
+
+  delay(20); // Reducir delay para respuesta más rápida
+}
+
+// --- Funciones de Control de Motores (con inversión y analogWrite) ---
+
+// Función genérica para controlar un par de pines de motor con inversión y velocidad
+void controlMotor(int pinA, int pinB, int dirA, int dirB, int velocidad, bool invertir) {
+  int nivelA = (dirA == HIGH) ? velocidad : LOW;
+  int nivelB = (dirB == HIGH) ? velocidad : LOW;
+
+  if (invertir) {
+    // Invierte los pines si es necesario
+    analogWrite(pinA, nivelB);
+    analogWrite(pinB, nivelA);
+  } else {
+    analogWrite(pinA, nivelA);
+    analogWrite(pinB, nivelB);
   }
 }
 
-void avanzar(int velocidad) { // velocidad no se usa con digitalWrite, pero se mantiene por consistencia
-  controlMotor(motorIzqA, motorIzqB, HIGH, LOW, INVERTIR_MOTOR_IZQ);
-  controlMotor(motorDerA, motorDerB, HIGH, LOW, INVERTIR_MOTOR_DER);
-  // Serial.println("Avanzando"); // Descomentar si necesitas mucho detalle
+void avanzar(int velocidad) {
+  controlMotor(motorIzqA, motorIzqB, HIGH, LOW, velocidad, INVERTIR_MOTOR_IZQ);
+  controlMotor(motorDerA, motorDerB, HIGH, LOW, velocidad, INVERTIR_MOTOR_DER);
 }
 
 void retroceder(int velocidad) {
-  controlMotor(motorIzqA, motorIzqB, LOW, HIGH, INVERTIR_MOTOR_IZQ);
-  controlMotor(motorDerA, motorDerB, LOW, HIGH, INVERTIR_MOTOR_DER);
-  // Serial.println("Retrocediendo");
+  controlMotor(motorIzqA, motorIzqB, LOW, HIGH, velocidad, INVERTIR_MOTOR_IZQ);
+  controlMotor(motorDerA, motorDerB, LOW, HIGH, velocidad, INVERTIR_MOTOR_DER);
 }
 
 void girarDerecha(int velocidad) {
-  controlMotor(motorIzqA, motorIzqB, HIGH, LOW, INVERTIR_MOTOR_IZQ); // Izquierda adelante
-  controlMotor(motorDerA, motorDerB, LOW, HIGH, INVERTIR_MOTOR_DER); // Derecha atrás
-  // Serial.println("Girando Derecha");
+  controlMotor(motorIzqA, motorIzqB, HIGH, LOW, velocidad, INVERTIR_MOTOR_IZQ); // Izquierda adelante
+  controlMotor(motorDerA, motorDerB, LOW, HIGH, velocidad, INVERTIR_MOTOR_DER); // Derecha atrás (o detener/baja velocidad)
+  // Alternativa: Detener motor derecho para giro más suave
+  // controlMotor(motorDerA, motorDerB, LOW, LOW, 0, INVERTIR_MOTOR_DER);
 }
 
 void girarIzquierda(int velocidad) {
-  controlMotor(motorIzqA, motorIzqB, LOW, HIGH, INVERTIR_MOTOR_IZQ); // Izquierda atrás
-  controlMotor(motorDerA, motorDerB, HIGH, LOW, INVERTIR_MOTOR_DER); // Derecha adelante
-  // Serial.println("Girando Izquierda");
+  controlMotor(motorIzqA, motorIzqB, LOW, HIGH, velocidad, INVERTIR_MOTOR_IZQ); // Izquierda atrás (o detener/baja velocidad)
+  controlMotor(motorDerA, motorDerB, HIGH, LOW, velocidad, INVERTIR_MOTOR_DER); // Derecha adelante
+  // Alternativa: Detener motor izquierdo para giro más suave
+  // controlMotor(motorIzqA, motorIzqB, LOW, LOW, 0, INVERTIR_MOTOR_IZQ);
 }
 
 void detener() {
-  controlMotor(motorIzqA, motorIzqB, LOW, LOW, INVERTIR_MOTOR_IZQ);
-  controlMotor(motorDerA, motorDerB, LOW, LOW, INVERTIR_MOTOR_DER);
-  // Serial.println("Detenido");
-}
-
-// --- Funciones del Sensor Ultrasónico ---
-void medirDistancia() {
-  // Limpiar el trigger
-  digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
-  // Enviar pulso
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
-  // Leer el tiempo del eco con timeout
-  duracionUltrasonico = pulseIn(echoPin, HIGH, 25000); // Timeout ~4m
-  // Calcular distancia en cm
-  distanciaObstaculo = duracionUltrasonico * 0.034 / 2;
-
-  // Limitar valores irreales
-  if (distanciaObstaculo <= 0 || distanciaObstaculo > 400) {
-    distanciaObstaculo = 400; // Asumir sin obstáculo si la lectura es inválida
-  }
+  // Poner ambos pines en LOW detiene la mayoría de los drivers
+  analogWrite(motorIzqA, 0);
+  analogWrite(motorIzqB, 0);
+  analogWrite(motorDerA, 0);
+  analogWrite(motorDerB, 0);
 }
 
 // --- Funciones Sensores IR ---
@@ -221,33 +137,40 @@ void mostrarValoresSensoresIR() {
 void seguirLineaNegra() {
   // Para línea negra: LOW = línea detectada, HIGH = fondo claro
 
-  // Caso 1: Solo el central ve la línea -> Avanzar
+  // Caso 1: Solo el central ve la línea -> Avanzar recto
   if (valorIzquierdoIR == HIGH && valorCentralIR == LOW && valorDerechoIR == HIGH) {
     Serial.println("Línea: Avanzar");
     avanzar(VELOCIDAD_NORMAL);
   }
-  // Caso 2: Izquierdo ve la línea (o izquierdo y central) -> Girar Izquierda
+  // Caso 2: Izquierdo ve la línea (o izquierdo y central) -> Corregir a la Izquierda
   else if (valorIzquierdoIR == LOW && valorDerechoIR == HIGH) {
-     Serial.println("Línea: Girar Izquierda");
-     girarIzquierda(VELOCIDAD_GIRO_LINEA);
+     Serial.println("Línea: Corregir Izquierda");
+     // Giro más suave: reducir velocidad motor izquierdo o aumentar derecho
+     controlMotor(motorIzqA, motorIzqB, HIGH, LOW, VELOCIDAD_GIRO / 2, INVERTIR_MOTOR_IZQ); // Izq más lento
+     controlMotor(motorDerA, motorDerB, HIGH, LOW, VELOCIDAD_GIRO, INVERTIR_MOTOR_DER);     // Der normal/rápido
+     // O usar giro sobre eje: girarIzquierda(VELOCIDAD_GIRO);
   }
-  // Caso 3: Derecho ve la línea (o derecho y central) -> Girar Derecha
+  // Caso 3: Derecho ve la línea (o derecho y central) -> Corregir a la Derecha
   else if (valorIzquierdoIR == HIGH && valorDerechoIR == LOW) {
-     Serial.println("Línea: Girar Derecha");
-     girarDerecha(VELOCIDAD_GIRO_LINEA);
+     Serial.println("Línea: Corregir Derecha");
+     // Giro más suave: reducir velocidad motor derecho o aumentar izquierdo
+     controlMotor(motorIzqA, motorIzqB, HIGH, LOW, VELOCIDAD_GIRO, INVERTIR_MOTOR_IZQ);     // Izq normal/rápido
+     controlMotor(motorDerA, motorDerB, HIGH, LOW, VELOCIDAD_GIRO / 2, INVERTIR_MOTOR_DER); // Der más lento
+     // O usar giro sobre eje: girarDerecha(VELOCIDAD_GIRO);
   }
-  // Caso 4: Ninguno ve la línea -> Detenerse o buscar (aquí detenemos)
+  // Caso 4: Ninguno ve la línea -> Línea perdida, detener o buscar
   else if (valorIzquierdoIR == HIGH && valorCentralIR == HIGH && valorDerechoIR == HIGH) {
      Serial.println("Línea: Perdida - Detenido");
-     detener(); // O implementar una rutina de búsqueda
+     detener(); // Podrías implementar una rutina de búsqueda aquí (girar hasta encontrar)
   }
-  // Caso 5: Todos ven la línea (cruce?) -> Avanzar o detenerse
+  // Caso 5: Todos ven la línea (cruce?) -> Avanzar recto o acción específica
   else if (valorIzquierdoIR == LOW && valorCentralIR == LOW && valorDerechoIR == LOW) {
      Serial.println("Línea: Cruce? - Avanzando");
-     avanzar(VELOCIDAD_NORMAL); // Podrías detenerte o hacer otra acción aquí
+     avanzar(VELOCIDAD_NORMAL); // O detenerse, girar, etc.
   }
   // Otros casos (ej. solo laterales ven negro) - Podrían indicar error o fin de línea
   else {
+      // Podría ser útil mantener el último estado o detenerse
       Serial.println("Línea: Estado inesperado - Detenido");
       detener();
   }
